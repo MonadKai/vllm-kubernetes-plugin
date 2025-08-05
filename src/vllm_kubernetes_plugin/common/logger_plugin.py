@@ -100,6 +100,8 @@ def make_kubernetes_formatter() -> logging.Formatter:
 def reset_logger_config(logger: logging.Logger) -> None:
     logger.handlers.clear()
 
+    logger.propagate = False
+
     stream = make_stream_handler()
     file = make_file_handler()
     handlers = [stream, file]
@@ -111,6 +113,8 @@ def reset_logger_config(logger: logging.Logger) -> None:
         handler.setFormatter(formatter)
         handler.setLevel(log_level)
         logger.addHandler(handler)
+    
+    logger.setLevel(log_level)
 
 
 def safe_import_logger(module_name: str) -> logging.Logger:
