@@ -2,12 +2,13 @@
 vllm logger plugin for kubernetes deployment
 """
 
+import importlib
 import logging
 import logging.handlers
 import os
 import warnings
-import vllm.envs as envs
 
+import vllm.envs as envs
 
 _log_folder_created = False
 
@@ -112,6 +113,18 @@ def reset_logger_config(logger: logging.Logger) -> None:
         logger.addHandler(handler)
 
 
+def safe_import_logger(module_name: str) -> logging.Logger:
+    try:
+        module = importlib.import_module(module_name)
+        if hasattr(module, "logger"):
+            return module.logger
+        else:
+            return logging.getLogger(module_name)
+    except Exception as e:
+        warnings.warn(f"Failed to import logger module {module_name}: {e}")
+        return logging.getLogger(module_name)
+
+
 def patch_all_loggers():
     root_modules = envs.LOG_ROOT_MODULES
     root_modules = root_modules.split(",")
@@ -121,7 +134,7 @@ def patch_all_loggers():
 
             logger_modules = SCANNED_INFO["modules_with_logger"]
             for logger_module in logger_modules:
-                logger = logging.getLogger(logger_module)
+                logger = safe_import_logger(logger_module)
                 reset_logger_config(logger)
         else:
             warnings.warn(f"Unsupported root module: {root_module}")
