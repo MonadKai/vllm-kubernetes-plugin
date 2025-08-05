@@ -19,9 +19,7 @@ reset_logger_config(logger)
 
 def add_trace_env_vars() -> None:
     additional_env_vars = {
-        "VLLM_TRACE_METHODS_WITH_REQUEST_ID": lambda: bool(
-            os.getenv("VLLM_TRACE_METHODS_WITH_REQUEST_ID", "true")
-        ),
+        "VLLM_TRACE_METHODS_WITH_REQUEST_ID": lambda: os.getenv("VLLM_TRACE_METHODS_WITH_REQUEST_ID", "True").lower() in ("true", "1"),
     }
     envs.environment_variables.update(additional_env_vars)
 

@@ -128,9 +128,9 @@ def patch_all_loggers():
 
 
 def register_logger_plugin():
-    if envs.VLLM_LOGGING_CONFIG_PATH:
+    if envs.VLLM_LOGGING_CONFIG_PATH or envs.VLLM_CONFIGURE_LOGGING == 1:
         warnings.warn(
-            "logger plugin is not supported when `VLLM_LOGGING_CONFIG_PATH` is set, skipping"
+            "logger plugin is not supported when `VLLM_LOGGING_CONFIG_PATH` is set or `VLLM_CONFIGURE_LOGGING` is 1, skipping k8s logger plugin"
         )
         return
 
