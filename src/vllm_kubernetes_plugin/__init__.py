@@ -1,7 +1,9 @@
-from .common.logger_plugin import patch_all_loggers
+from .common.logger_plugin import register_logger_plugin
+from .common.trace_plugin import register_trace_plugin
 
 __all__ = ["register"]
 
 
 def register():
-    patch_all_loggers()
+    register_logger_plugin()
+    register_trace_plugin()
