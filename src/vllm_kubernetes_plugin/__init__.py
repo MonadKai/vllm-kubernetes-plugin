@@ -1,5 +1,5 @@
 from .common.logger_plugin import register_logger_plugin
-from .common.trace_plugin import register_trace_plugin
+from .trace import register_trace_plugin
 
 __all__ = ["register"]
 

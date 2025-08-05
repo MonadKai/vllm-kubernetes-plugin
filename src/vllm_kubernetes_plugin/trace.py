@@ -2,24 +2,62 @@
 vllm trace plugin for kubernetes deployment
 """
 
-from typing import Callable, Optional
-import os
-import logging
-import importlib
 import functools
+import importlib
 import inspect
-import vllm.envs as envs
+import logging
+import os
+import uuid
+from typing import Awaitable, Callable, Optional
 
-from .logger_plugin import reset_logger_config
-from ..config.vllm_scanned_info import SCANNED_INFO
+import vllm.envs as envs
+from starlette.datastructures import Headers, MutableHeaders
+from starlette.types import ASGIApp, Message, Receive, Scope, Send
+
+from .config.vllm_scanned_info import SCANNED_INFO
+from .common.logger_plugin import reset_logger_config
 
 logger = logging.getLogger(__name__)
 reset_logger_config(logger)
 
 
+class XRequestIdMiddleware:
+    """
+    Middleware the set's the X-Request-Id header for each response
+    to a random uuid4 (hex) value if the header isn't already
+    present in the request, otherwise use the provided request id.
+    """
+
+    def __init__(self, app: ASGIApp) -> None:
+        self.app = app
+
+    def __call__(self, scope: Scope, receive: Receive, send: Send) -> Awaitable[None]:
+        if scope["type"] not in ("http", "websocket"):
+            return self.app(scope, receive, send)
+
+        # Extract the request headers.
+        request_headers = Headers(scope=scope)
+
+        async def send_with_request_id(message: Message) -> None:
+            """
+            Custom send function to mutate the response headers
+            and append X-Request-Id to it.
+            """
+            if message["type"] == "http.response.start":
+                response_headers = MutableHeaders(raw=message["headers"])
+                request_id = request_headers.get("X-Request-Id", uuid.uuid4().hex)
+                response_headers.append("X-Request-Id", request_id)
+            await send(message)
+
+        return self.app(scope, receive, send_with_request_id)
+
+
 def add_trace_env_vars() -> None:
     additional_env_vars = {
-        "VLLM_TRACE_METHODS_WITH_REQUEST_ID": lambda: os.getenv("VLLM_TRACE_METHODS_WITH_REQUEST_ID", "True").lower() in ("true", "1"),
+        "VLLM_TRACE_METHODS_WITH_REQUEST_ID": lambda: os.getenv(
+            "VLLM_TRACE_METHODS_WITH_REQUEST_ID", "True"
+        ).lower()
+        in ("true", "1"),
     }
     envs.environment_variables.update(additional_env_vars)
 
@@ -125,12 +163,18 @@ def create_traced_method(
         request_id = kwargs.get("request_id") or args[request_id_index]
 
         if request_id is None:
-            logger.warning(f"`request_id` not found in method {method_full_name}, executing without tracing")
+            logger.warning(
+                f"`request_id` not found in method {method_full_name}, executing without tracing"
+            )
             return method(*args, **kwargs)
 
-        curr_logger.info(f"[request_id={request_id}] Start calling method `{method_full_name}`")
+        curr_logger.info(
+            f"[request_id={request_id}] Start calling method `{method_full_name}`"
+        )
         result = method(*args, **kwargs)
-        curr_logger.info(f"[request_id={request_id}] End calling method `{method_full_name}`")
+        curr_logger.info(
+            f"[request_id={request_id}] End calling method `{method_full_name}`"
+        )
         return result
 
     return wrapper
@@ -171,4 +215,5 @@ def patch_all_methods_with_request_id():
 def register_trace_plugin():
     add_trace_env_vars()
     if envs.VLLM_TRACE_METHODS_WITH_REQUEST_ID:
+        # TODO: add XRequestIdMiddleware to the app according to the vllm version
         patch_all_methods_with_request_id()
