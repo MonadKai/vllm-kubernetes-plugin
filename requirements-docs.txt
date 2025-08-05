@@ -1,0 +1,9 @@
+# documentation dependencies
+# base dependencies
+-r requirements.txt
+
+# documentation
+mkdocs>=1.5.0
+mkdocs-material>=9.0.0
+mkdocs-mermaid2-plugin>=1.0.0
+pymdown-extensions>=10.0.0 
