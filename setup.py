@@ -107,7 +107,7 @@ setup(
     packages=find_packages("src"),
     package_dir={"": "src"},
     python_requires=">=3.9",
-    install_requires=["vllm>=0.5.5", "pynvml>=12.0.0", "pydantic>=2.0.0"],
+    install_requires=["vllm>=0.7.2", "pynvml>=12.0.0", "pydantic>=2.0.0"],
     extras_require={},
     entry_points={
         "vllm.general_plugins": [
