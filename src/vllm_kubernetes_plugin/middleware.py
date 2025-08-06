@@ -108,22 +108,18 @@ def _log_streaming_response(request_id: str, path: str, response_body: list) -> 
                 sse_decoder.add_content(content)
                 if chunk_count % 10 == 0:
                     logger.info(
-                        f"[request_id={request_id}] Streaming response of {path}: {chunk_count}-th content='{content}'"
+                        f"[request_id={request_id}] Streaming response of {path}: {chunk_count}-th content={repr(content)}"
                     )
             elif event["type"] == "done":
                 # Log complete content when done
                 full_content = sse_decoder.get_complete_content()
-                if full_content:
-                    # Truncate if too long
-                    if len(full_content) > 2048:
-                        full_content = full_content[:2048] + "...[truncated]"
-                    logger.info(
-                        f"[request_id={request_id}] Streaming response of {path} completed: full_content='{full_content}', chunks={chunk_count}"
-                    )
-                else:
-                    logger.info(
-                        f"[request_id={request_id}] Streaming response of {path} completed: no_content, chunks={chunk_count}"
-                    )
+                # Truncate if too long
+                if len(full_content) > 1024:
+                    full_content = full_content[:128] + "...[omitted]..." + full_content[-128:]
+                logger.info(
+                    f"[request_id={request_id}] Streaming response of {path} completed(chunks={chunk_count}): full_content={repr(full_content)}"
+                )
+
                 return
     logger.info(f"[request_id={request_id}] Streaming response of {path} ended")
 
@@ -247,7 +243,7 @@ class LogRequestResponseMiddleware:
 
 def register_log_request_response_plugin():
     """Register the log request response plugin."""
-    if not envs.VLLM_DEBUG_LOG_API_SERVER_RESPONSE:
+    if hasattr(envs, "VLLM_DEBUG_LOG_API_SERVER_RESPONSE") and envs.VLLM_DEBUG_LOG_API_SERVER_RESPONSE:
         warnings.warn(
             "Instead of using `VLLM_DEBUG_LOG_API_SERVER_RESPONSE` to enable response logging or turn off `--disable-log-requests`, "
             "we highly recommend to set our dedicated middleware in vllm cli args: `--middleware vllm_kubernetes_plugin.middleware.LogRequestResponseMiddleware`"
