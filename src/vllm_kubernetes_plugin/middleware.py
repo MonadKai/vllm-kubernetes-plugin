@@ -4,6 +4,7 @@ import warnings
 
 import pydantic
 import vllm.envs as envs
+from starlette.datastructures import Headers
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 from vllm.entrypoints.openai.api_server import logger
 
@@ -106,7 +107,9 @@ def _log_streaming_response(request_id: str, path: str, response_body: list) -> 
                 content = sse_decoder.extract_content(event["data"])
                 sse_decoder.add_content(content)
                 if chunk_count % 10 == 0:
-                    logger.info(f"[request_id={request_id}] Streaming response of {path}: {chunk_count}-th content='{content}'")
+                    logger.info(
+                        f"[request_id={request_id}] Streaming response of {path}: {chunk_count}-th content='{content}'"
+                    )
             elif event["type"] == "done":
                 # Log complete content when done
                 full_content = sse_decoder.get_complete_content()
@@ -114,20 +117,30 @@ def _log_streaming_response(request_id: str, path: str, response_body: list) -> 
                     # Truncate if too long
                     if len(full_content) > 2048:
                         full_content = full_content[:2048] + "...[truncated]"
-                    logger.info(f"[request_id={request_id}] Streaming response of {path} completed: full_content='{full_content}', chunks={chunk_count}")
+                    logger.info(
+                        f"[request_id={request_id}] Streaming response of {path} completed: full_content='{full_content}', chunks={chunk_count}"
+                    )
                 else:
-                    logger.info(f"[request_id={request_id}] Streaming response of {path} completed: no_content, chunks={chunk_count}")
+                    logger.info(
+                        f"[request_id={request_id}] Streaming response of {path} completed: no_content, chunks={chunk_count}"
+                    )
                 return
     logger.info(f"[request_id={request_id}] Streaming response of {path} ended")
 
 
-def _log_non_streaming_response(request_id: str, path: str, response_body: list) -> None:
+def _log_non_streaming_response(
+    request_id: str, path: str, response_body: list
+) -> None:
     """Log non-streaming response."""
     try:
         decoded_body = response_body[0].decode()
-        logger.info(f"[request_id={request_id}] Non-streaming response of {path}:\n{json.dumps(json.loads(decoded_body), ensure_ascii=False, indent=2)}")
+        logger.info(
+            f"[request_id={request_id}] Non-streaming response of {path}:\n{json.dumps(json.loads(decoded_body), ensure_ascii=False, indent=2)}"
+        )
     except UnicodeDecodeError:
-        logger.info(f"[request_id={request_id}] Non-streaming response of {path}: <binary_data>")
+        logger.info(
+            f"[request_id={request_id}] Non-streaming response of {path}: <binary_data>"
+        )
 
 
 def _is_completion_endpoint(path: str) -> bool:
@@ -149,14 +162,20 @@ def _log_request_body(request_id: str, path: str, request_body: bytes) -> None:
             json_data = json.loads(body_str)
             # TODO: ignore multi-modal content
             # Truncate if too long
-            logger.info(f"[request_id={request_id}] Request body of {path}:\n{json.dumps(json_data, ensure_ascii=False, indent=2)}")
+            logger.info(
+                f"[request_id={request_id}] Request body of {path}:\n{json.dumps(json_data, ensure_ascii=False, indent=2)}"
+            )
         except json.JSONDecodeError:
             # Not valid JSON, log as plain text
-            logger.info(f"[request_id={request_id}] Request body of {path}:\n{body_str}")
+            logger.info(
+                f"[request_id={request_id}] Request body of {path}:\n{body_str}"
+            )
 
     except UnicodeDecodeError:
         # Binary data
-        logger.info(f"[request_id={request_id}] Request body of {path}: <binary_data: {len(request_body)} bytes>")
+        logger.info(
+            f"[request_id={request_id}] Request body of {path}: <binary_data: {len(request_body)} bytes>"
+        )
 
 
 class LogRequestResponseMiddleware:
@@ -175,10 +194,13 @@ class LogRequestResponseMiddleware:
         request_body = b""
         request_complete = False
 
+        # Extract request headers from scope
+        request_headers = Headers(scope=scope)
+        request_id = request_headers.get("X-Request-Id", "")
+
         async def receive_wrapper() -> Message:
             nonlocal request_body, request_complete
             message = await receive()
-            request_id = message.get("headers", {}).get(b"x-request-id", b"").decode()
 
             if message["type"] == "http.request":
                 # Accumulate request body data
@@ -192,17 +214,13 @@ class LogRequestResponseMiddleware:
 
             return message
 
-        headers_dict = {}
-        response_request_id = ""
+        response_headers_dict = {}
         response_body = []
 
         async def send_wrapper(message: Message) -> None:
-            nonlocal headers_dict, response_request_id, response_body
+            nonlocal response_headers_dict, response_body
             if message["type"] == "http.response.start":
-                # Store headers as a list of tuples
-                headers_list = message.get("headers", [])
-                headers_dict = dict(headers_list)
-                response_request_id = headers_dict.get(b"x-request-id", b"").decode()
+                response_headers_dict = dict(message.get("headers", []))
             elif message["type"] == "http.response.body":
                 body = message.get("body", b"")
                 response_body.append(body)
@@ -211,28 +229,29 @@ class LogRequestResponseMiddleware:
         await self.app(scope, receive_wrapper, send_wrapper)
 
         if not response_body:
-            logger.info(f"[request_id={response_request_id}] Response body of {path}: <empty>")
+            logger.info(
+                f"[request_id={request_id}] Response body of {path}: <empty>"
+            )
         else:
-            content_type = headers_dict.get(b"content-type", b"").decode()
+            content_type = response_headers_dict.get(b"content-type", b"").decode()
             is_streaming = content_type == "text/event-stream; charset=utf-8"
-            logger.info(f"[request_id={response_request_id}] Response pattern of {path} is {'streaming' if is_streaming else 'non-streaming'}")
+            logger.info(
+                f"[request_id={request_id}] Response pattern of {path} is {'streaming' if is_streaming else 'non-streaming'}"
+            )
 
             if is_streaming:
-                _log_streaming_response(response_request_id, path, response_body)
+                _log_streaming_response(request_id, path, response_body)
             else:
-                _log_non_streaming_response(response_request_id, path, response_body)
-
+                _log_non_streaming_response(request_id, path, response_body)
 
 
 def register_log_request_response_plugin():
     """Register the log request response plugin."""
     if not envs.VLLM_DEBUG_LOG_API_SERVER_RESPONSE:
         warnings.warn(
-            "vllm-kubernetes-plugin's `LogRequestResponseMiddleware` is somehow duplicated when VLLM_DEBUG_LOG_API_SERVER_RESPONSE is set"
+            "Instead of using `VLLM_DEBUG_LOG_API_SERVER_RESPONSE` to enable response logging or turn off `--disable-log-requests`, "
+            "we highly recommend to set our dedicated middleware in vllm cli args: `--middleware vllm_kubernetes_plugin.middleware.LogRequestResponseMiddleware`"
         )
         return
 
     # TODO: dynamic change vllm cli args `middleware` according to env var `VLLM_LOG_REQUEST_RESPONSE_MIDDLEWARE_ENABLED`
-    logger.info(
-        "Please register log request response plugin by adding middleware in vllm cli args: `--middleware vllm_kubernetes_plugin.middleware.LogRequestResponseMiddleware`"
-    )

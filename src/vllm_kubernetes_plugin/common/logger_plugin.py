@@ -9,11 +9,12 @@ import os
 import warnings
 
 import vllm.envs as envs
+from vllm_kubernetes_plugin.utils import get_package_scanned_info_module
 
 _log_folder_created = False
 
 DEFAULT_APP_NAME = "standalone"
-DEFAULT_LOG_ROOT_MODULES = "vllm"
+DEFAULT_LOG_ROOT_MODULES = "vllm,lmcache"
 DEFAULT_LOG_FORMAT = "%(asctime)s.%(msecs)03d [{app_name}] [%(threadName)s] %(levelname)s [%(name)s.%(funcName)s] [-] %(message)s"
 DEFAULT_DATE_FORMAT = "%Y-%m-%d %H:%M:%S"
 DEFAULT_LOG_FILENAME = "api_server.log"
@@ -113,7 +114,7 @@ def reset_logger_config(logger: logging.Logger) -> None:
         handler.setFormatter(formatter)
         handler.setLevel(log_level)
         logger.addHandler(handler)
-    
+
     logger.setLevel(log_level)
 
 
@@ -133,15 +134,16 @@ def patch_all_loggers():
     root_modules = envs.LOG_ROOT_MODULES
     root_modules = root_modules.split(",")
     for root_module in root_modules:
-        if root_module == "vllm":
-            from ..config.vllm_scanned_info import SCANNED_INFO
+        package_scanned_info_module = get_package_scanned_info_module(root_module)
+        if package_scanned_info_module is None:
+            continue
 
-            logger_modules = SCANNED_INFO["modules_with_logger"]
-            for logger_module in logger_modules:
-                logger = safe_import_logger(logger_module)
-                reset_logger_config(logger)
-        else:
-            warnings.warn(f"Unsupported root module: {root_module}")
+        modules_with_logger = getattr(
+            package_scanned_info_module, "MODULES_WITH_LOGGER"
+        )
+        for module_with_logger in modules_with_logger:
+            logger = safe_import_logger(module_with_logger)
+            reset_logger_config(logger)
 
 
 def register_logger_plugin():

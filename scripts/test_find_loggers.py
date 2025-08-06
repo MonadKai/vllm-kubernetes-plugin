@@ -13,12 +13,13 @@ from typing import List
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-from scripts.utils import find_logger_modules
+from scripts.utils import find_logger_modules, normalized_package_full_name
 
 
-def load_expected_logger_modules() -> List[str]:
+def load_expected_logger_modules(package_name: str, package_version: str) -> List[str]:
     """Load expected logger modules from the generated JSON configuration file"""
-    json_file = project_root / "scripts" / "test_output" / "vllm_scanned_info.json"
+    package_full_name = normalized_package_full_name(package_name, package_version)
+    json_file = project_root / "scripts" / "test_output" / f"{package_full_name}.json"
 
     if not json_file.exists():
         print(f"Warning: JSON configuration file not found at {json_file}")
@@ -75,7 +76,7 @@ def test_find_logger_modules():
     print("=== Testing find_logger_modules function ===")
 
     print("\nStep 1: Loading expected logger modules from JSON configuration...")
-    expected_modules = load_expected_logger_modules()
+    expected_modules = load_expected_logger_modules("vllm", "0.10.0")
 
     if not expected_modules:
         print("Cannot proceed with test - no expected modules loaded")

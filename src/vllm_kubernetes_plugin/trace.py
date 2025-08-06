@@ -14,8 +14,8 @@ import vllm.envs as envs
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
-from .config.vllm_scanned_info import SCANNED_INFO
-from .common.logger_plugin import reset_logger_config
+from vllm_kubernetes_plugin.utils import get_package_scanned_info_module
+from .common.logger_plugin import reset_logger_config, safe_import_logger
 
 logger = logging.getLogger(__name__)
 reset_logger_config(logger)
@@ -138,11 +138,17 @@ def _safe_get_request_id_index(method_full_name: str) -> Optional[int]:
     return get_request_id_index_in_args(method)
 
 
-REQUEST_ID_INDEX_IN_ARGS = {
-    method_full_name: index
-    for method_full_name in SCANNED_INFO["methods_with_request_id"]
-    if (index := _safe_get_request_id_index(method_full_name)) is not None
-}
+METHODS_WITH_REQUEST_ID = []
+REQUEST_ID_INDEX_IN_ARGS = {}
+for root_module in envs.LOG_ROOT_MODULES.split(","):
+    package_scanned_info_module = get_package_scanned_info_module(root_module)
+    if package_scanned_info_module is None:
+        continue
+    methods_with_request_id = getattr(package_scanned_info_module, "METHODS_WITH_REQUEST_ID")
+    for method_full_name in methods_with_request_id:
+        if (index := _safe_get_request_id_index(method_full_name)) is not None:
+            METHODS_WITH_REQUEST_ID.append(method_full_name)
+            REQUEST_ID_INDEX_IN_ARGS[method_full_name] = index
 
 
 def create_traced_method(
@@ -156,7 +162,8 @@ def create_traced_method(
     method_name = method.__name__
     method_full_name = f"{module_name}.{class_name}.{method_name}"
 
-    curr_logger = logging.getLogger(module_name)
+    curr_logger = safe_import_logger(module_name)
+    reset_logger_config(curr_logger)
 
     @functools.wraps(method)
     def wrapper(*args, **kwargs):
@@ -172,9 +179,6 @@ def create_traced_method(
             f"[request_id={request_id}] Start calling method `{method_full_name}`"
         )
         result = method(*args, **kwargs)
-        curr_logger.info(
-            f"[request_id={request_id}] End calling method `{method_full_name}`"
-        )
         return result
 
     return wrapper
@@ -182,14 +186,7 @@ def create_traced_method(
 
 def patch_all_methods_with_request_id():
     """Patch all methods with request_id"""
-    methods_with_request_id = SCANNED_INFO["methods_with_request_id"]
-
-    for method_full_name in methods_with_request_id:
-        if method_full_name not in REQUEST_ID_INDEX_IN_ARGS:
-            logger.warning(
-                f"Skipping patching for method without request_id parameter: {method_full_name}"
-            )
-            continue
+    for method_full_name in METHODS_WITH_REQUEST_ID:
         module_name, class_name, method_name = parse_method_name(method_full_name)
         module, class_obj, method = import_method(module_name, class_name, method_name)
         if module is None or class_obj is None or method is None:
@@ -198,10 +195,8 @@ def patch_all_methods_with_request_id():
             )
             continue
 
-        request_id_index = REQUEST_ID_INDEX_IN_ARGS[method_full_name]
-
         traced_method = create_traced_method(
-            module, class_obj, method, request_id_index
+            module, class_obj, method, REQUEST_ID_INDEX_IN_ARGS[method_full_name]
         )
 
         try:

@@ -70,7 +70,7 @@ def test_build():
     
     # Test 1: Check if configuration file is generated
     print("  📋 Checking configuration file...")
-    config_file = project_root / "src" / "vllm_kubernetes_plugin" / "config" / "vllm_scanned_info.py"
+    config_file = project_root / "src" / "vllm_kubernetes_plugin" / "package_scanned_info" / "vllm__v0_10_0.py"
     if config_file.exists():
         print("    ✅ Configuration file exists")
     else:
@@ -181,12 +181,12 @@ def main():
     # Step 2: Generate vLLM configuration
     if not args.skip_config:
         run_command(
-            [sys.executable, "scripts/generate_config.py"], 
-            "Generate vLLM configuration",
+            [sys.executable, "scripts/generate_package_scanned_info.py"], 
+            "Generate package scanned information",
             continue_on_error=True  # Configuration generation failure does not abort build
         )
     else:
-        print("⏭️  Skip configuration generation step")
+        print("⏭️  Skip package scanned information generation step")
     
     # Step 3: Build project
     if args.use_setuptools:
