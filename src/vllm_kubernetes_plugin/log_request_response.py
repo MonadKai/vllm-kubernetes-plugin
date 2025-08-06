@@ -11,6 +11,19 @@ from vllm.entrypoints.openai.protocol import ChatCompletionRequest, CompletionRe
 from vllm.entrypoints.openai.serving_chat import OpenAIServingChat
 from vllm.entrypoints.openai.serving_completion import OpenAIServingCompletion
 from starlette.middleware.base import BaseHTTPMiddleware
+import os
+
+__all__ = ["log_response", "register_log_request_response_plugin"]
+
+
+def add_log_request_response_env_vars() -> None:
+    additional_env_vars = {
+        "VLLM_DEBUG_LOG_API_SERVER_REQUEST_RESPONSE": lambda: os.getenv(
+            "VLLM_DEBUG_LOG_API_SERVER_REQUEST_RESPONSE", "False"
+        ).lower()
+        in ("true", "1"),
+    }
+    envs.environment_variables.update(additional_env_vars)
 
 
 def _extract_content_from_chunk(chunk_data: dict) -> str:
@@ -294,16 +307,21 @@ def replace_log_response_middleware():
 
 def register_log_request_response_plugin():
     """Register the log request response plugin."""
-    warnings.warn(
-        "vLLM cli args `--disable-log-requests` is recommended to be turned off"
-    )
-    log_request()
-
-    replace_log_response_middleware()
-    if (
-        hasattr(envs, "VLLM_DEBUG_LOG_API_SERVER_RESPONSE")
-        and envs.VLLM_DEBUG_LOG_API_SERVER_RESPONSE
-    ):
+    add_log_request_response_env_vars()
+    if envs.VLLM_DEBUG_LOG_API_SERVER_REQUEST_RESPONSE:
         warnings.warn(
-            "Instead of using vLLM's `log_response` middleware, a customized version is used to enable full-featured response logging"
+            "vLLM cli args `--disable-log-requests` is recommended to be turned off"
         )
+        log_request()
+        if (
+            hasattr(envs, "VLLM_DEBUG_LOG_API_SERVER_RESPONSE")
+            and envs.VLLM_DEBUG_LOG_API_SERVER_RESPONSE
+        ):
+            warnings.warn(
+                "Instead of using vLLM's `log_response` middleware, a customized version is used to enable full-featured response logging"
+            )
+            replace_log_response_middleware()
+        else:
+            warnings.warn(
+                "We highly recommend to set the log_response middleware in vLLM cli args: `--middleware vllm_kubernetes_plugin.middleware.log_response`"
+            )
