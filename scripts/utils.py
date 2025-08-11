@@ -19,7 +19,7 @@ def get_package_version(package_name: str) -> str:
 
 def normalized_version(version: str) -> str:
     """Normalize version string"""
-    return version.replace(".", "_")
+    return version.replace(".", "_").replace("-", "_").replace("+", "___")
 
 
 def normalized_package_full_name(package_name: str, package_version: str) -> str:
