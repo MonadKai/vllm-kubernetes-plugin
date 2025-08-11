@@ -1,0 +1,39 @@
+#!/bin/bash
+
+# traditional vLLM environment variables
+export CUDA_VISIBLE_DEVICES="0,1"
+export PYDEVD_WARN_SLOW_RESOLVE_TIMEOUT="999999999"
+export VLLM_USE_V1="1"
+export VLLM_ATTENTION_BACKEND="FLASHINFER"
+export VLLM_ENABLE_V1_MULTIPROCESSING="4"
+export VLLM_AUDIO_FETCH_TIMEOUT="999999999"
+export VLLM_RPC_TIMEOUT="999999999"
+export VLLM_ENGINE_ITERATION_TIMEOUT_S="999999999"
+
+# additional vllm-kubernetes-plugin logging environment variables (basic)
+export VLLM_LOGGING_CONFIG_PATH=""
+export VLLM_CONFIGURE_LOGGING="0"
+
+export APP_NAME="qwen2-5-7b-instruct"
+export LOG_ROOT_MODULES="vllm,lmcache"
+export VLLM_LOG_FORMAT="%(asctime)s.%(msecs)03d [{app_name}] [%(threadName)s] %(levelname)s [%(name)s.%(funcName)s] [-] %(message)s"
+export VLLM_LOG_DATE_FORMAT="%Y-%m-%d %H:%M:%S"
+export VLLM_LOG_FILENAME="api_server.log"
+export VLLM_LOG_FILE_MAX_BYTES="8388608"
+export VLLM_LOG_FILE_BACKUP_COUNT="5"
+
+
+# Run the vLLM server
+python3 -m vllm.entrypoints.openai.api_server \
+    --model Qwen/Qwen2.5-7B-Instruct \
+    --dtype auto \
+    --max-model-len 8192 \
+    --gpu-memory-utilization 0.7 \
+    --tensor-parallel-size 2 \
+    --enforce-eager \
+    --enable-prefix-caching \
+    --served-model-name model \
+    --port 8000 \
+    --enable-request-id-headers \
+    --disable-fastapi-docs \
+    --disable-log-requests
