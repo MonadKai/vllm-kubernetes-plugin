@@ -96,8 +96,8 @@ build = [
 ]
 
 [project.urls]
-Homepage = "https://github.com/onlookerliu/vllm-kubernetes-plugin"
-Repository = "https://github.com/onlookerliu/vllm-kubernetes-plugin"
+Homepage = "https://github.com/MonadKai/vllm-kubernetes-plugin"
+Repository = "https://github.com/MonadKai/vllm-kubernetes-plugin"
 
 [project.entry-points."vllm.general_plugins"]
 vllm_kubernetes_plugin = "vllm_kubernetes_plugin:register"
