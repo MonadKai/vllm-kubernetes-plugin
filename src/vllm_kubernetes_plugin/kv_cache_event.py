@@ -15,17 +15,15 @@ logger = logging.getLogger(__name__)
 reset_logger_config(logger)
 
 
-SelfAttnBlockSpaceManager.allocate
-
 def log_v0_allocate_result(self: SelfAttnBlockSpaceManager, seq_group: SequenceGroup) -> None:
+    request_id = seq_group.request_id
+
     waiting_seqs = seq_group.get_seqs(status=SequenceStatus.WAITING)
     for seq in waiting_seqs:
         block_table = self.block_tables.get(seq.seq_id)
         if block_table:
             block_ids = [block.block_id for block in block_table._blocks]
-            logger.info(f"allocated block for seq_id: {seq.seq_id} with block ids: {block_ids}")
-
-    request_id = seq_group.request_id
+            logger.info(f"[request_id={request_id}] allocated block for seq_id: {seq.seq_id} with block ids: {block_ids}")
 
     if seq_group.is_encoder_decoder():
         encoder_seq = seq_group.get_encoder_seq()
@@ -33,7 +31,7 @@ def log_v0_allocate_result(self: SelfAttnBlockSpaceManager, seq_group: SequenceG
             block_table = self.block_tables.get(encoder_seq.seq_id)
             if block_table:
                 block_ids = [block.block_id for block in block_table._blocks]
-                logger.info(f"allocated block for encoder_seq_id: {encoder_seq.seq_id} with block ids: {block_ids}")
+                logger.info(f"[request_id={request_id}] allocated block for encoder_seq_id: {encoder_seq.seq_id} with block ids: {block_ids}")
 
 
 def log_v0_free_result(self: SelfAttnBlockSpaceManager, seq: Sequence) -> None:
