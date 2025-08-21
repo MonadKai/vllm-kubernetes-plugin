@@ -112,37 +112,6 @@ def _is_completion_endpoint(path: str) -> bool:
     return path in ["/v1/chat/completions", "/v1/completions"]
 
 
-# DEPRECATED due to performance issue
-def _log_request_body(request_id: str, path: str, request_body: bytes) -> None:
-    """Log request body as JSON if it's a completion endpoint."""
-    if not _is_completion_endpoint(path):
-        return
-
-    try:
-        # Try to decode as UTF-8
-        body_str = request_body.decode("utf-8")
-
-        # Try to parse as JSON
-        try:
-            json_data = json.loads(body_str)
-            # TODO: ignore multi-modal content
-            # Truncate if too long
-            logger.info(
-                f"[request_id={request_id}] Request body of {path}:\n{json.dumps(json_data, ensure_ascii=False, indent=2)}"
-            )
-        except json.JSONDecodeError:
-            # Not valid JSON, log as plain text
-            logger.info(
-                f"[request_id={request_id}] Request body of {path}:\n{body_str}"
-            )
-
-    except UnicodeDecodeError:
-        # Binary data
-        logger.info(
-            f"[request_id={request_id}] Request body of {path}: <binary_data: {len(request_body)} bytes>"
-        )
-
-
 def serialize_request_without_media(request):
     data = request.model_dump()
 
@@ -202,8 +171,8 @@ def _log_streaming_response_with_context(
     request_id: str, path: str, response, response_body: list
 ) -> None:
     """Log streaming response with request context."""
-    if not _is_completion_endpoint(path):
-        return
+    # if not _is_completion_endpoint(path):
+    #     return
 
     from starlette.concurrency import iterate_in_threadpool
 
@@ -251,8 +220,8 @@ def _log_non_streaming_response_with_context(
     request_id: str, path: str, response_body: list
 ) -> None:
     """Log non-streaming response with request context."""
-    if not _is_completion_endpoint(path):
-        return
+    # if not _is_completion_endpoint(path):
+    #     return
 
     try:
         decoded_body = response_body[0].decode()
@@ -268,6 +237,9 @@ def _log_non_streaming_response_with_context(
 async def log_response(request: Request, call_next):
     path = request.url.path
     response = await call_next(request)
+    if not _is_completion_endpoint(path):
+        return response
+
     response_body = [section async for section in response.body_iterator]
     response.body_iterator = iterate_in_threadpool(iter(response_body))
     # Check if this is a streaming response by looking at content-type
