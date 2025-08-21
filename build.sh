@@ -1,0 +1,1 @@
+docker build --build-arg VLLM_IMAGE=vllm/vllm-openai:v0.10.1.1 -t vllm:v0.10.1.1 .
