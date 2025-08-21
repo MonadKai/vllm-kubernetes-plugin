@@ -140,11 +140,11 @@ def log_request():
     raw_create_completion = OpenAIServingCompletion.create_completion
 
     async def create_chat_completion(
-        self,
+        self: OpenAIServingChat,
         request: ChatCompletionRequest,
         raw_request: Optional[Request] = None,
     ):
-        request_id = self._base_request_id(raw_request, request.request_id)
+        request_id = self._base_request_id(raw_request, getattr(request, "request_id", None))
         path = raw_request.url.path
         logger.info(
             f"[request_id={request_id}] Request body of {path}:\n{json.dumps(serialize_request_without_media(request), ensure_ascii=False, indent=2)}"
@@ -152,11 +152,11 @@ def log_request():
         return await raw_create_chat_completion(self, request, raw_request)
 
     async def create_completion(
-        self,
+        self: OpenAIServingCompletion,
         request: CompletionRequest,
         raw_request: Optional[Request] = None,
     ):
-        request_id = self._base_request_id(raw_request, request.request_id)
+        request_id = self._base_request_id(raw_request, getattr(request, "request_id", None))
         path = raw_request.url.path
         logger.info(
             f"[request_id={request_id}] Request body of {path}:\n{json.dumps(serialize_request_without_media(request), ensure_ascii=False, indent=2)}"
